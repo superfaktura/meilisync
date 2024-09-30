@@ -39,16 +39,23 @@ class MySQL(Source):
         else:
             fields = "*"
         async with conn.cursor(cursor=DictCursor) as cur:
-            offset = 0
+            last_sync_pk_value = None
             while True:
-                await cur.execute(
-                    f"SELECT {fields} FROM {sync.table} "
-                    f"ORDER BY {sync.pk} LIMIT {size} OFFSET {offset}"
-                )
+                if (last_sync_pk_value == None):
+                    await cur.execute(
+                        f"SELECT {fields} FROM {sync.table} "
+                        f"ORDER BY {sync.pk} LIMIT {size}"
+                    )
+                else:
+                    await cur.execute(
+                        f"SELECT {fields} FROM {sync.table} WHERE {sync.pk} > {last_sync_pk_value} "
+                        f"ORDER BY {sync.pk} LIMIT {size}"
+                    )
+
                 ret = await cur.fetchall()
                 if not ret:
                     break
-                offset += size
+                last_sync_pk_value = ret[-1][sync.pk]
                 yield ret
 
     async def get_count(self, sync: Sync):
